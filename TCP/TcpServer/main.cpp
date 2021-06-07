@@ -20,9 +20,6 @@ int main()
     struct sockaddr_in serverAddr, clientAddr;
 
     int listenfd, connfd;
-    pid_t childpid;
-
-    char buf[MAXDATASIZE];
 
     socklen_t clilen;
 
@@ -51,6 +48,9 @@ int main()
         exit(1);
     }
 
+    printf("server start listen\n");
+
+    char recvline[MAXDATASIZE];
     while (true) {
         clilen = sizeof (clientAddr);
         connfd = accept(listenfd,(struct sockaddr *)&clientAddr,&clilen);
@@ -62,12 +62,17 @@ int main()
         printf("aceept success\n");
         printf("IP = %s:PORT = %d\n", inet_ntoa(clientAddr.sin_addr), ntohs(clientAddr.sin_port));
 
-        ssize_t n;
-        char msg[MAXDATASIZE];
-        while ((n = read(connfd,msg,MAXDATASIZE)) > 0) {
-            write(connfd,msg,n);
+        int len = read(connfd,recvline,sizeof (recvline) -1);
+        if(len < 0)
+        {
+            printf("read error\n");
         }
+
+        printf("client recv: %s",recvline);
+        write(connfd,recvline,strlen(recvline));
+
         close(connfd);
+        break;
     }
 
     close(listenfd);
