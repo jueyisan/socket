@@ -44,20 +44,17 @@ int main()
         write(sockfd,sendLine,strlen(sendLine));
     }
 
-    while (true) {
-        int len = read(sockfd,recvLine,sizeof (recvLine) -1);
-        if(len < 0)
-        {
-            printf("read error\n");
-        }
 
-        if(fputs(recvLine,stdout) == EOF)
-        {
-            printf("fputs error\n");
-            exit(1);
-        }
+    int len = read(sockfd,recvLine,sizeof (recvLine) -1);
+    if(len < 0)
+    {
+        printf("read error\n");
+    }
 
-        break;
+    if(fputs(recvLine,stdout) == EOF)
+    {
+        printf("fputs error\n");
+        exit(1);
     }
 
     close(sockfd);
