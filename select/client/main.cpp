@@ -29,7 +29,7 @@ void str_cli(int sockfd)
         write(sockfd,sendline,strlen(sendline));
 
         bzero(recvline,MAX_DATA_SIZE);
-        if(read(sockfd,recvline,MAX_DATA_SIZE) <= 0)
+        if(read(sockfd,recvline,sizeof (recvline) -1) < 0)
         {
             printf("server terminated prematurel\n");
             exit(1);
@@ -74,7 +74,7 @@ void select_cli(FILE* fp, int sockfd)
 
         if(FD_ISSET(sockfd,&rset))
         {
-            if(read(sockfd,recvline,MAX_DATA_SIZE) == 0)
+            if(read(sockfd,recvline,sizeof (recvline) -1) == 0)
             {
                 printf("handleMsg: server terminated prematurel\n");
                 exit(1);

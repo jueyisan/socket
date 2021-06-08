@@ -21,15 +21,13 @@
 int main()
 {
 
-    int i, maxi, maxfd, listenfd, confd, sockfd;
-    int nready, client[FD_SETSIZE];
-
-    ssize_t n, ret;
-    fd_set rset, allset;
+    int listenfd, connfd, sockfd;
 
     char buf[MAX_DATA_SIZE];
+    char msg[] = "hello world";
 
     socklen_t clilen;
+    pid_t chilpid;
 
     struct sockaddr_in serverAddr, clientAddr;
 
@@ -44,92 +42,40 @@ int main()
 
     listen(listenfd,LISTENQ);
 
-    //set select
-    maxfd = listenfd;
-    maxi = -1;
-    for(i = 0; i < FD_SETSIZE; i++)
-    {
-        client[i] = -1;
-    }
-    FD_ZERO(&allset);
-    FD_SET(listenfd,&allset);
-
     //start server
     printf("start server listen\n");
     while(true)
     {
-        rset = allset;
-        nready = select(maxfd+1,&rset,nullptr,nullptr,nullptr);
-
-        if(FD_ISSET(listenfd,&rset))
+        clilen = sizeof (clientAddr);
+        connfd = accept(listenfd,(struct sockaddr *)&clientAddr,&clilen);
+        if(connfd < 0)
         {
-            clilen = sizeof (clientAddr);
+            printf("accept error\n");
+            exit(1);
+        }
+        printf("aceept success\n");
+        printf("IP = %s:PORT = %d\n", inet_ntoa(clientAddr.sin_addr), ntohs(clientAddr.sin_port));
 
-            printf("accept connection\n");
-            confd = accept(listenfd,(struct sockaddr *)&clientAddr,&clilen);
-            if( confd < 0)
+
+        if((chilpid = fork()) == 0)
+        {
+            close(listenfd);
+
+
+            //write(connfd,msg,strlen(msg));
+
+            while(read(connfd,buf,sizeof (buf)-1) > 0)
             {
-                printf("accept error\n");
-                exit(1);
+                printf("client recv: %s\n",buf);
+                write(connfd,buf,strlen(buf));
             }
-
-            printf("accept a new client: %s:%d \n",inet_ntoa(clientAddr.sin_addr), clientAddr.sin_port);
-
-            // put client socket into client array
-            for (i = 0; i < FD_SETSIZE; i++) {
-                if(client[i] < 0)
-                {
-                    client[i] = confd;
-                    break;
-                }
-            }
-
-            if(FD_SETSIZE == i)
-            {
-                printf("too many connection\n");
-                exit(1);
-            }
-
-            FD_SET(confd,&allset);
-            if(confd > maxfd)
-                maxfd = confd;
-            if(i > maxi)
-                maxi = i;
-
-            if(--nready < 0)
-                continue;
+            exit(0);
         }
 
-        for (i = 0; i < maxi; i++) {
-            if((sockfd = client[i]) < 0)
-                continue;
-
-            if(FD_ISSET(sockfd,&rset))
-            {
-                printf("reading the socket\n");
-
-                bzero(buf,MAX_DATA_SIZE);
-                if((n = read(sockfd,buf,MAX_DATA_SIZE)) <= 0)
-                {
-                    close(sockfd);
-                    FD_CLR(sockfd, &allset);
-                    client[i] = -1;
-                }
-                else {
-                    printf("client[%d] send message: %s\n",i,buf);
-                    if((ret = write(sockfd,buf,n)) != n)
-                    {
-                        printf("error write to the socket\n");
-                        break;
-                    }
-                }
-
-                if(--nready <= 0)
-                    break;
-
-            }
-        }
+        close(connfd);
     }
+
+    close(listenfd);
 
     return 0;
 }

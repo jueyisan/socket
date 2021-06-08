@@ -22,6 +22,7 @@ int main()
     int listenfd, connfd;
 
     socklen_t clilen;
+    pid_t chilpid;
 
     listenfd = socket(AF_INET,SOCK_STREAM,0);
     if(listenfd < 0)
@@ -62,17 +63,20 @@ int main()
         printf("aceept success\n");
         printf("IP = %s:PORT = %d\n", inet_ntoa(clientAddr.sin_addr), ntohs(clientAddr.sin_port));
 
-        int len = read(connfd,recvline,sizeof (recvline) -1);
-        if(len < 0)
+
+        if((chilpid = fork()) == 0)
         {
-            printf("read error\n");
+            close(listenfd);
+
+            while(read(connfd,recvline,sizeof (recvline)) > 0)
+            {
+                printf("client recv: %s",recvline);
+                write(connfd,recvline,strlen(recvline));
+            }
+            exit(0);
         }
 
-        printf("client recv: %s",recvline);
-        write(connfd,recvline,strlen(recvline));
-
         close(connfd);
-        break;
     }
 
     close(listenfd);
