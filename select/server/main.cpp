@@ -11,6 +11,7 @@
 #include <netinet/in.h>
 #include <netdb.h>
 #include <fcntl.h>
+#include <ctype.h>
 
 
 #define PORT 8000
@@ -21,61 +22,123 @@
 int main()
 {
 
-    int listenfd, connfd, sockfd;
+    int i, maxi, maxfd, listenfd, connfd, sockfd;
+
+    int nready , client[FD_SETSIZE];
+
+    ssize_t n, ret;
+
+    fd_set rset , allset;
 
     char buf[MAX_DATA_SIZE];
-    char msg[] = "hello world";
 
     socklen_t clilen;
-    pid_t chilpid;
 
-    struct sockaddr_in serverAddr, clientAddr;
+    struct sockaddr_in servaddr , cliaddr;
 
-    listenfd = socket(AF_INET,SOCK_STREAM,0);
+    /*(1) 得到监听描述符*/
+    listenfd = socket(AF_INET , SOCK_STREAM , 0);
 
-    bzero(&serverAddr, sizeof (serverAddr));
-    serverAddr.sin_family = AF_INET;
-    serverAddr.sin_addr.s_addr = htonl(INADDR_ANY);
-    serverAddr.sin_port = htons(PORT);
+    /*(2) 绑定套接字*/
+    bzero(&servaddr , sizeof(servaddr));
+    servaddr.sin_family = AF_INET;
+    servaddr.sin_addr.s_addr = htonl(INADDR_ANY);
+    servaddr.sin_port = htons(PORT);
 
-    bind(listenfd,(struct sockaddr *)&serverAddr,sizeof (serverAddr));
+    bind(listenfd , (struct sockaddr *)&servaddr , sizeof(servaddr));
 
-    listen(listenfd,LISTENQ);
+    /*(3) 监听*/
+    listen(listenfd , LISTENQ);
 
-    //start server
-    printf("start server listen\n");
-    while(true)
+    /*(4) 设置select*/
+    maxfd = listenfd;
+    maxi = -1;
+    for(i=0 ; i<FD_SETSIZE ; ++i)
     {
-        clilen = sizeof (clientAddr);
-        connfd = accept(listenfd,(struct sockaddr *)&clientAddr,&clilen);
-        if(connfd < 0)
+        client[i] = -1;
+    }//for
+    FD_ZERO(&allset);
+    FD_SET(listenfd , &allset);
+
+    printf("ready to listen~~~ \n");
+    /*(5) 进入服务器接收请求死循环*/
+    while(1)
+    {
+        rset = allset;
+        nready = select(maxfd+1 , &rset , nullptr , nullptr , nullptr);
+
+        if(FD_ISSET(listenfd , &rset))
         {
-            printf("accept error\n");
-            exit(1);
-        }
-        printf("aceept success\n");
-        printf("IP = %s:PORT = %d\n", inet_ntoa(clientAddr.sin_addr), ntohs(clientAddr.sin_port));
+            /*接收客户端的请求*/
+            clilen = sizeof(cliaddr);
 
+            printf("accpet connection~\n");
 
-        if((chilpid = fork()) == 0)
-        {
-            close(listenfd);
-
-
-            //write(connfd,msg,strlen(msg));
-
-            while(read(connfd,buf,sizeof (buf)-1) > 0)
+            if((connfd = accept(listenfd , (struct sockaddr *)&cliaddr , &clilen)) < 0)
             {
-                printf("client recv: %s\n",buf);
-                write(connfd,buf,strlen(buf));
+                perror("accept error.\n");
+                exit(1);
             }
-            exit(0);
+
+            printf("accpet a new client: %s:%d\n", inet_ntoa(cliaddr.sin_addr) , cliaddr.sin_port);
+
+            /*将客户链接套接字描述符添加到数组*/
+            for(i=0 ; i < FD_SETSIZE ; ++i)
+            {
+                if(client[i] < 0)
+                {
+                    client[i] = connfd;
+                    break;
+                }
+            }
+
+            if(FD_SETSIZE == i)
+            {
+                perror("too many connection.\n");
+                exit(1);
+            }
+
+            FD_SET(connfd , &allset);
+            if(connfd > maxfd)
+                maxfd = connfd;
+            if(i > maxi)
+                maxi = i;
+
+            if(--nready < 0)
+                continue;
         }
 
-        close(connfd);
+        for(i = 0; i <= maxi ; ++i)
+        {
+            if((sockfd = client[i]) < 0)
+                continue;
+            if(FD_ISSET(sockfd , &rset))
+            {
+                /*处理客户请求*/
+                printf("reading the socket~~~ \n");
+
+                bzero(buf , MAX_DATA_SIZE);
+                if((n = read(sockfd , buf , sizeof (buf) - 1)) <= 0)
+                {
+                    close(sockfd);
+                    FD_CLR(sockfd , &allset);
+                    client[i] = -1;
+                }
+                else{
+                    printf("clint[%d] send message: %s\n", i , buf);
+                    for (int j = 0; j < n; j++) {
+                        buf[j] = toupper(buf[j]);
+                    }
+                    if((ret = write(sockfd , buf , n)) != n)
+                    {
+                        printf("error writing to the sockfd!\n");
+                        break;
+                    }
+                }
+
+                if(--nready <= 0)
+                    break;
+            }
+        }
     }
-
-    close(listenfd);
-
-    return 0;
 }
