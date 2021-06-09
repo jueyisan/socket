@@ -119,7 +119,7 @@ int main()
                     for (int j = 0; j < strlen(buf);j++) {
                         buf[j] = toupper(buf[j]);
                     }
-                    ret = write(sockfd,buf,strlens(buf));
+                    ret = write(sockfd,buf,strlen(buf));
                     if(ret != n)
                     {
                         printf("write error\n");
